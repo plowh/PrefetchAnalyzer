@@ -1,4 +1,5 @@
 #pragma once
 
 std::string getPrefetchFiles();
-void displayPrefetchFiles(const std::string& path);
+std::vector<std::filesystem::directory_entry> sortPrefetchFiles(const std::string& path);
+void displayPrefetchFiles(const std::vector<std::filesystem::directory_entry>& files);
