@@ -34,6 +34,6 @@ void displayPrefetchFiles(const std::vector<std::filesystem::directory_entry>& f
 
     //printing the files in the path into console
     for (const auto& file : files) {
-        std::cout << file.path() << '\n';
+        std::cout << file.path().filename() << '\n';
     }
 }
