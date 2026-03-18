@@ -9,21 +9,9 @@
 
 int main() {
 
-    std::string path = getPrefetchFiles();
+    std::string path = getPrefetchFiles(); //setting the returned value to the path variable
     displayPrefetchFiles(path);
 
     system("pause");
     return 0;
-}
-
-
-std::string getPrefetchFiles() {
-
-  return R"(C:\Windows\Prefetch)"; //defining the path i wanna look thru
-}
-
-void displayPrefetchFiles(const std::string& path) {
-
-    //printing the files in the path into console
-    for (const auto& file : std::filesystem::directory_iterator(path)) std::cout << file.path() << std::endl; 
 }
