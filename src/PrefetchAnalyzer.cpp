@@ -1,9 +1,12 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <iostream>
 #include <string>
 #include <filesystem>
 #include <vector>
 #include <algorithm>
+#include <ctime>
+#include <chrono>
 
 #include "functionList.h"
 
@@ -34,6 +37,16 @@ void displayPrefetchFiles(const std::vector<std::filesystem::directory_entry>& f
 
     //printing the files in the path into console
     for (const auto& file : files) {
-        std::cout << file.path().filename() << '\n';
+        std::cout << file.path().filename() << " | ";
+        
+        auto ftime = std::filesystem::last_write_time(file);
+        auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+            ftime - std::filesystem::file_time_type::clock::now()
+            + std::chrono::system_clock::now()
+        );
+
+        std::time_t cftime_s = std::chrono::system_clock::to_time_t(sctp);
+
+        std::cout << std::ctime(&cftime_s) << '\n';
     }
 }
