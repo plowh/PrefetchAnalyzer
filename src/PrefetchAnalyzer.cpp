@@ -14,6 +14,7 @@
 
 #pragma comment(lib, "wintrust.lib")
 
+
 std::string getPrefetchFiles() {
 
     return R"(C:\Windows\Prefetch)"; //returning the path i wanna look thru
@@ -37,53 +38,89 @@ std::vector<std::filesystem::directory_entry> sortPrefetchFiles(const std::strin
     return files;
 }
 
+#include <unordered_map>
+
 void displayPrefetchFiles(const std::vector<std::filesystem::directory_entry>& files) {
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
-    //printing the files in the path into console
+    // Build a map of all EXEs on C:\ once
+    std::unordered_map<std::wstring, std::wstring> exeMap;
+    std::wcout << L"Scanning C:\\ for EXE files...\n";
+    for (auto& p : std::filesystem::recursive_directory_iterator(L"C:\\", std::filesystem::directory_options::skip_permission_denied)) {
+        try {
+            if (p.is_regular_file() && p.path().extension() == L".exe") {
+                // lowercase filename for case-insensitive matching
+                std::wstring filename = p.path().filename().wstring();
+                std::transform(filename.begin(), filename.end(), filename.begin(), ::towlower);
+                exeMap[filename] = p.path().wstring();
+            }
+        }
+        catch (...) {
+            continue; // skip inaccessible files
+        }
+    }
+    std::wcout << L"EXE scan complete.\n\n";
+
+    // Loop through each PF file
     for (const auto& file : files) {
-        std::cout << file.path().filename() << " | ";
-        
+        std::wcout << file.path().filename().wstring() << L" | ";
 
-        // Print the date modified next to the filenames
-
-        auto ftime = std::filesystem::last_write_time(file); // set the files last write time to ftime variable
-
-
-        //time_point_cast - function that converts one time format to another
-        //system_clock::duration - converts from computer clock to human clock
-        auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>( 
-            ftime - std::filesystem::file_time_type::clock::now()
-            + std::chrono::system_clock::now()
+        // Print last modified time
+        auto ftime = std::filesystem::last_write_time(file);
+        auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+            ftime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now()
         );
+        std::time_t cftime_s = std::chrono::system_clock::to_time_t(systemTime);
+        std::wstring timeStr = std::wstring(std::ctime(&cftime_s), std::ctime(&cftime_s) + 24); // trim newline
+        std::wcout << timeStr << L" | ";
 
-        std::time_t cftime_s = std::chrono::system_clock::to_time_t(systemTime); //converts system clock to time_t
+        // Extract EXE name
+        std::wstring pfFile = file.path().filename().wstring();
+        size_t dashPos = pfFile.find(L'-');
+        std::wstring exeName = (dashPos != std::wstring::npos) ? pfFile.substr(0, dashPos) : pfFile;
 
-        std::string timeStr = std::ctime(&cftime_s);
-        timeStr.pop_back();
-        std::cout << timeStr << " | ";
+        // lowercase for lookup
+        std::wstring exeNameLower = exeName;
+        std::transform(exeNameLower.begin(), exeNameLower.end(), exeNameLower.begin(), ::towlower);
 
-        std::wstring path = file.path().wstring();
+        // Look up full path in map
+        std::wstring exePath;
+        auto it = exeMap.find(exeNameLower);
+        if (it != exeMap.end()) exePath = it->second;
 
-        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-
-        if (isFileSigned(path)) {
+        // Check signing
+        if (!exePath.empty() && isFileSigned(exePath)) {
             SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-            std::cout << "[SIGNED]\n\n";
+            std::wcout << L"[SIGNED]\n\n";
+        }
+        else if (exePath.empty()) {
+            SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_RED);
+            std::wcout << L"[EXE NOT FOUND]\n\n";
         }
         else {
             SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
-            std::cout << "[UNSIGNED]\n\n";
+            std::wcout << L"[UNSIGNED]\n\n";
         }
+
         SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
     }
 }
 
+std::wstring findExe(const std::wstring& exeName, const std::wstring& root) {
+    for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
+        if (p.is_regular_file() && p.path().filename() == exeName) {
+            return p.path().wstring();
+        }
+    }
+    return L""; // not found
+}
 
-bool isFileSigned(const std::wstring& filePath) {
+
+bool isFileSigned(const std::wstring& exeName) {
 
     WINTRUST_FILE_INFO fileInfo = {};
     fileInfo.cbStruct = sizeof(fileInfo);
-    fileInfo.pcwszFilePath = filePath.c_str();
+    fileInfo.pcwszFilePath = exeName.c_str();
 
     WINTRUST_DATA winTrustData = {};
     winTrustData.cbStruct = sizeof(winTrustData);
