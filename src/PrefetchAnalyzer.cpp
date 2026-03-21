@@ -15,10 +15,13 @@
 #pragma comment(lib, "wintrust.lib")
 
 
+
 std::string getPrefetchFiles() {
 
     return R"(C:\Windows\Prefetch)"; //returning the path i wanna look thru
 }
+
+
 
 
 std::vector<std::filesystem::directory_entry> sortPrefetchFiles(const std::string& path) {
@@ -36,6 +39,31 @@ std::vector<std::filesystem::directory_entry> sortPrefetchFiles(const std::strin
         });
 
     return files;
+}
+
+
+void unsignedOnly(const std::vector<std::filesystem::directory_entry>& files) {
+    char response;
+    
+
+    while (true) {
+
+        std::cout << "Show unsigned files only? [Y/N]\n";
+        std::cin >> response;
+        response = std::tolower(response);
+
+        if (response == 'y') {
+            displayUnsignedPrefetchFiles(files);
+            break;
+        }
+        else if (response == 'n') {
+            displayPrefetchFiles(files);
+            break;
+        }
+        else {
+            std::cout << "Invalid input, please try again.\n";
+        }
+    }
 }
 
 #include <unordered_map>
@@ -88,7 +116,7 @@ void displayPrefetchFiles(const std::vector<std::filesystem::directory_entry>& f
         auto it = exeMap.find(exeNameLower);
         if (it != exeMap.end()) exePath = it->second;
 
-        // Check signing
+        // Check if the file is signed
         if (!exePath.empty() && isFileSigned(exePath)) {
             SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
             std::wcout << L"[SIGNED]\n\n";
@@ -98,6 +126,71 @@ void displayPrefetchFiles(const std::vector<std::filesystem::directory_entry>& f
             std::wcout << L"[EXE NOT FOUND]\n\n";
         }
         else {
+            SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
+            std::wcout << L"[UNSIGNED]\n\n";
+        }
+
+        SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+    }
+}
+
+void displayUnsignedPrefetchFiles(const std::vector<std::filesystem::directory_entry>& files) {
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    // Build a map of all EXEs on C:\ once
+    std::unordered_map<std::wstring, std::wstring> exeMap;
+    std::wcout << L"Scanning C:\\ for EXE files...\n";
+    for (auto& p : std::filesystem::recursive_directory_iterator(L"C:\\", std::filesystem::directory_options::skip_permission_denied)) {
+        try {
+            if (p.is_regular_file() && p.path().extension() == L".exe") {
+                // lowercase filename for case-insensitive matching
+                std::wstring filename = p.path().filename().wstring();
+                std::transform(filename.begin(), filename.end(), filename.begin(), ::towlower);
+                exeMap[filename] = p.path().wstring();
+            }
+        }
+        catch (...) {
+            continue; // skip inaccessible files
+        }
+    }
+    std::wcout << L"EXE scan complete.\n\n";
+
+    // Loop through each PF file
+    for (const auto& file : files) {
+
+        // Print last modified time
+        auto ftime = std::filesystem::last_write_time(file);
+        auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+            ftime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now()
+        );
+        std::time_t cftime_s = std::chrono::system_clock::to_time_t(systemTime);
+        std::wstring timeStr = std::wstring(std::ctime(&cftime_s), std::ctime(&cftime_s) + 24); // trim newline
+        
+
+        // Extract EXE name
+        std::wstring pfFile = file.path().filename().wstring();
+        size_t dashPos = pfFile.find(L'-');
+        std::wstring exeName = (dashPos != std::wstring::npos) ? pfFile.substr(0, dashPos) : pfFile;
+
+        // lowercase for lookup
+        std::wstring exeNameLower = exeName;
+        std::transform(exeNameLower.begin(), exeNameLower.end(), exeNameLower.begin(), ::towlower);
+
+        // Look up full path in map
+        std::wstring exePath;
+        auto it = exeMap.find(exeNameLower);
+        if (it != exeMap.end()) exePath = it->second;
+
+        // Check if the file is signed
+        if (!exePath.empty() && isFileSigned(exePath)) {
+            continue;
+        }
+        else if (exePath.empty()) {
+            continue;
+        }
+        else {
+            std::wcout << file.path().filename().wstring() << L" | ";
+            std::wcout << timeStr << L" | ";
             SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
             std::wcout << L"[UNSIGNED]\n\n";
         }
