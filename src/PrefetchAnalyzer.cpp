@@ -9,6 +9,7 @@
 #include <chrono>
 #include <wintrust.h>
 #include <Softpub.h>
+#include <iomanip>
 
 #include "functionList.h"
 
@@ -87,11 +88,14 @@ void displayPrefetchFiles(const std::vector<std::filesystem::directory_entry>& f
             continue; // skip inaccessible files
         }
     }
-    std::wcout << L"EXE scan complete.\n\n";
+    std::wcout << L"EXE scan complete.\n\n\n";
+    std::wcout << L"--------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n\n";
+
+    std::wcout << std::left;
 
     // Loop through each PF file
     for (const auto& file : files) {
-        std::wcout << file.path().filename().wstring() << L" | ";
+        std::wcout << std::left << std::setw(60) << file.path().filename().wstring();
 
         // Print last modified time
         auto ftime = std::filesystem::last_write_time(file);
@@ -100,7 +104,7 @@ void displayPrefetchFiles(const std::vector<std::filesystem::directory_entry>& f
         );
         std::time_t cftime_s = std::chrono::system_clock::to_time_t(systemTime);
         std::wstring timeStr = std::wstring(std::ctime(&cftime_s), std::ctime(&cftime_s) + 24); // trim newline
-        std::wcout << timeStr << L" | ";
+        std::wcout << std::setw(50) << timeStr;
 
         // Extract EXE name
         std::wstring pfFile = file.path().filename().wstring();
@@ -119,15 +123,15 @@ void displayPrefetchFiles(const std::vector<std::filesystem::directory_entry>& f
         // Check if the file is signed
         if (!exePath.empty() && isFileSigned(exePath)) {
             SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-            std::wcout << L"[SIGNED]\n\n";
+            std::wcout << L"[SIGNED]" << std::endl;
         }
         else if (exePath.empty()) {
             SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_RED);
-            std::wcout << L"[EXE NOT FOUND]\n\n";
+            std::wcout << L"[EXE NOT FOUND]" << std::endl;
         }
         else {
             SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
-            std::wcout << L"[UNSIGNED]\n\n";
+            std::wcout << L"[UNSIGNED]" << std::endl;;
         }
 
         SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
@@ -154,6 +158,7 @@ void displayUnsignedPrefetchFiles(const std::vector<std::filesystem::directory_e
         }
     }
     std::wcout << L"EXE scan complete.\n\n";
+    std::wcout << L"--------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n\n\n";
 
     // Loop through each PF file
     for (const auto& file : files) {
@@ -189,10 +194,10 @@ void displayUnsignedPrefetchFiles(const std::vector<std::filesystem::directory_e
             continue;
         }
         else {
-            std::wcout << file.path().filename().wstring() << L" | ";
-            std::wcout << timeStr << L" | ";
+            std::wcout << std::left << std::setw(60) << file.path().filename().wstring();
+            std::wcout << std::setw(50) << timeStr;
             SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
-            std::wcout << L"[UNSIGNED]\n\n";
+            std::wcout << L"[UNSIGNED]" << std::endl;
         }
 
         SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
